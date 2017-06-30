@@ -1,0 +1,74 @@
+using BeardedManStudios.Forge.Networking.Generated;
+using System;
+using UnityEngine;
+
+namespace BeardedManStudios.Forge.Networking.Unity
+{
+	public partial class NetworkManager : MonoBehaviour
+	{
+		public delegate void InstantiateEvent(INetworkBehavior unityGameObject, NetworkObject obj);
+		public event InstantiateEvent objectInitialized;
+
+		>:FOREACH networkObjects:<
+		public GameObject[] >:[i]:<NetworkObject = null;
+		>:ENDFOREACH:<
+
+		private void Start()
+		{
+			NetworkObject.objectCreated += (obj) =>
+			{
+				if (obj.CreateCode < 0)
+					return;
+				
+				>:FOREACH networkObjects:<
+				>:ELSEIF:< (obj is >:[i]:<NetworkObject)
+				{
+					MainThreadManager.Run(() =>
+					{
+						NetworkBehavior newObj = null;
+						if (!NetworkBehavior.skipAttachIds.TryGetValue(obj.NetworkId, out newObj))
+						{
+							if (>:[i]:<NetworkObject.Length > 0 && >:[i]:<NetworkObject[obj.CreateCode] != null)
+							{
+								var go = Instantiate(>:[i]:<NetworkObject[obj.CreateCode]);
+								newObj = go.GetComponent<NetworkBehavior>();
+							}
+						}
+
+						if (newObj == null)
+							return;
+						
+						newObj.Initialize(obj);
+
+						if (objectInitialized != null)
+							objectInitialized(newObj, obj);
+					});
+				}
+				>:ENDFOREACH:<
+			};
+		}
+
+		private void InitializedObject(INetworkBehavior behavior, NetworkObject obj)
+		{
+			if (objectInitialized != null)
+				objectInitialized(behavior, obj);
+
+			obj.pendingInitialized -= InitializedObject;
+		}
+
+		>:FOREACH networkObjects:<
+		public >:[i]:<Behavior Instantiate>:[i]:<NetworkObject(int index = 0, Vector3? position = null, Quaternion? rotation = null, bool sendTransform = true)
+		{
+			var go = Instantiate(>:[i]:<NetworkObject[index]);
+			var netBehavior = go.GetComponent<NetworkBehavior>() as >:[i]:<Behavior;
+			var obj = netBehavior.CreateNetworkObject(Networker, index);
+			go.GetComponent<>:[i]:<Behavior>().networkObject = (>:[i]:<NetworkObject)obj;
+
+			FinializeInitialization(go, netBehavior, obj, position, rotation, sendTransform);
+			
+			return netBehavior;
+		}
+
+		>:ENDFOREACH:<
+	}
+}
