@@ -12,13 +12,12 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
 
 using BeardedManStudios.Threading;
-using System;
 using System.Collections.Generic;
 using System.Net;
 
@@ -32,6 +31,9 @@ namespace BeardedManStudios.Forge.Networking
 {
 	public class NetworkingPlayer
 	{
+		private const uint PLAYER_TIMEOUT_DISCONNECT = 90000;
+		private const int DEFAULT_PING_INTERVAL = 5000;
+
 		/// <summary>
 		/// An event that is called whenever this player has disconnected
 		/// </summary>
@@ -114,7 +116,7 @@ namespace BeardedManStudios.Forge.Networking
 		/// <summary>
 		/// Last ping sent to the NetworkingPlayer
 		/// </summary>
-		public DateTime LastPing { get; private set; }
+		public ulong LastPing { get; private set; }
 
 		/// <summary>
 		/// Whether this player is the one hosting
@@ -145,11 +147,12 @@ namespace BeardedManStudios.Forge.Networking
 		/// <summary>
 		/// The amount of time in seconds to disconnect this player if no messages are sent
 		/// </summary>
-		public float InactiveTimeoutSeconds { get; set; }
-
-		private const float PLAYER_TIMEOUT_DISCONNECT = 180.0f;
+		public uint TimeoutMilliseconds { get; set; }
 
 		private bool composerReady = false;
+
+		private int currentPingWait = 0;
+		public int PingInterval { get; set; }
 
 		public NetWorker Networker { get; private set; }
 
@@ -173,8 +176,9 @@ namespace BeardedManStudios.Forge.Networking
 			Ip = ip.Split('+')[0];
 			IsHost = isHost;
 			SocketEndpoint = socketEndpoint;
-			LastPing = DateTime.Now;
-			InactiveTimeoutSeconds = PLAYER_TIMEOUT_DISCONNECT;
+			LastPing = networker.Time.Timestep;
+			TimeoutMilliseconds = PLAYER_TIMEOUT_DISCONNECT;
+			PingInterval = DEFAULT_PING_INTERVAL;
 
 			if (SocketEndpoint != null)
 			{
@@ -228,7 +232,16 @@ namespace BeardedManStudios.Forge.Networking
 		/// </summary>
 		public void Ping()
 		{
-			LastPing = DateTime.Now;
+			LastPing = Networker.Time.Timestep;
+		}
+
+		/// <summary>
+		/// Called by the server to check and see if this player has timed out
+		/// </summary>
+		/// <returns>True if the player has timed out</returns>
+		public bool TimedOut()
+		{
+			return LastPing + TimeoutMilliseconds <= Networker.Time.Timestep;
 		}
 
 		/// <summary>
@@ -286,16 +299,25 @@ namespace BeardedManStudios.Forge.Networking
 				currentComposer = reliableComposers[0];
 			}
 
-			if (!composerReady && Networker.IsBound && !NetWorker.ExitingApplication)
+			if (!composerReady && Networker.IsBound && !NetWorker.EndingSession)
 			{
 				// Run this on a separate thread so that it doesn't interfere with the reading thread
 				Task.Queue(() =>
 				{
+					int waitTime = 10, pendingCount = 0;
 					while (Networker.IsBound && !Disconnected)
 					{
 						if (nextComposerReady)
 						{
-							Task.Sleep(10);
+							Task.Sleep(waitTime);
+							currentPingWait += waitTime;
+
+							if (!(Networker is IServer) && currentPingWait >= PingInterval)
+							{
+								currentPingWait = 0;
+								Networker.Ping();
+							}
+
 							continue;
 						}
 
@@ -303,18 +325,21 @@ namespace BeardedManStudios.Forge.Networking
 						{
 							lock (currentComposer.PendingPackets)
 							{
-								if (currentComposer.PendingPackets.Count > 0)
-								{
-									if (Networker.LatencySimulation > 0)
-										Task.Sleep(Networker.LatencySimulation);
+								pendingCount = currentComposer.PendingPackets.Count;
+							}
 
-									currentComposer.ResendPackets();
-								}
+							if (pendingCount > 0)
+							{
+								if (Networker.LatencySimulation > 0)
+									Task.Sleep(Networker.LatencySimulation);
+
+								currentComposer.ResendPackets();
 							}
 
 							// TODO:  Wait the latency for this
 							Task.Sleep(10);
-						} while (!currentComposer.Player.Disconnected && currentComposer.PendingPackets.Count > 0 && Networker.IsBound && !NetWorker.ExitingApplication);
+						} while (!currentComposer.Player.Disconnected && currentComposer.PendingPackets.Count > 0 && Networker.IsBound && !NetWorker.EndingSession);
+						currentPingWait = 0;
 					}
 				});
 

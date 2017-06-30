@@ -1,9 +1,11 @@
 ﻿using BeardedManStudios.Forge.Networking;
 using BeardedManStudios.Forge.Networking.Generated;
 using BeardedManStudios.Forge.Networking.Unity;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class CubeForgeGame : CubeForgeGameBehavior
 {
@@ -44,6 +46,8 @@ public class CubeForgeGame : CubeForgeGameBehavior
 	/// </summary>
 	private Vector3 max = Vector3.zero;
 
+	private NetworkCameraNetworkObject netCam;
+
 	private void Awake()
 	{
 		if (Instance != null)
@@ -72,12 +76,14 @@ public class CubeForgeGame : CubeForgeGameBehavior
 
 			if (NetworkManager.Instance.Networker is IServer)
 				obj.Owner.disconnected += () => { obj.Destroy(); };
+
+			netCam = obj as NetworkCameraNetworkObject;
 		};
 
 		// Since this object is a singleton we can create the player from here as
 		// it is in the scene at start time and we want to create a player camera
 		// for this newly created server or newly connected client
-		NetworkManager.Instance.InstantiateNetworkCameraNetworkObject();
+		NetworkManager.Instance.InstantiateNetworkCamera();
 
 		NetworkManager.Instance.Networker.pingReceived += PingReceived;
 
@@ -89,9 +95,24 @@ public class CubeForgeGame : CubeForgeGameBehavior
 			// information through the rpc attached to this object
 			NetworkManager.Instance.Networker.playerAccepted += (player) =>
 			{
-				MainThreadManager.Run(() => { networkObject.SendRpc(player, "InitializeMap", Receivers.Target, min, max, SerializeMap()); });
+				MainThreadManager.Run(() => { networkObject.SendRpc(player, RPC_INITIALIZE_MAP, min, max, SerializeMap()); });
 			};
 		}
+		else
+		{
+			NetworkManager.Instance.Networker.disconnected += DisconnectedFromServer;
+		}
+	}
+
+	private void DisconnectedFromServer()
+	{
+		NetworkManager.Instance.Networker.disconnected -= DisconnectedFromServer;
+
+		MainThreadManager.Run(() =>
+		{
+			NetworkManager.Instance.Disconnect();
+			SceneManager.LoadScene(0);
+		});
 	}
 
 	private void PingReceived(double ping)
@@ -101,14 +122,40 @@ public class CubeForgeGame : CubeForgeGameBehavior
 
 	private void Update()
 	{
+
 		// Pretty useless at the moment as the only primitive supported is a cube
 		// will add a sphere or something later
 		if (Input.GetKeyDown(KeyCode.Alpha0))
 			primitiveIndex = 0;
 
+		if (NetworkManager.Instance == null)
+			return;
+
+		if (!NetworkManager.Instance.Networker.IsServer)
+			return;
+
 		if (Input.GetKeyDown(KeyCode.Space))
-			networkObject.Networker.Ping();
+		{
+			// We need to clean up the network objects before we change the scene
+			// since we are loading this same scene. When that scene loads it will
+			// re-create the objects, so we don't want lingering ones
+			Cleanup();
+			SceneManager.LoadScene(1);
+		}
+
+		if (Input.GetKeyDown(KeyCode.Escape))
+		{
+			NetworkManager.Instance.Disconnect();
+			SceneManager.LoadScene(0);
+		}
+
 		// TODO:  Add a sphere to this if chain
+	}
+
+	private void Cleanup()
+	{
+		networkObject.Destroy();
+		netCam.Destroy();
 	}
 
 	private void WriteLabel(Rect rect, string message)
@@ -124,6 +171,9 @@ public class CubeForgeGame : CubeForgeGameBehavior
 
 	private void OnGUI()
 	{
+		if (NetworkManager.Instance == null || NetworkManager.Instance.Networker == null)
+			return;
+
 		// If there are no players, then the scene is currently being loaded, otherwise
 		// show the current count of players in the game
 		if (playerCount == 0)
@@ -142,7 +192,7 @@ public class CubeForgeGame : CubeForgeGameBehavior
 	/// <param name="position"></param>
 	public void CreatePrimitive(Vector3 position)
 	{
-		networkObject.SendRpc("CreatePrimitive", Receivers.All, primitiveIndex, position);
+		networkObject.SendRpc(RPC_CREATE_PRIMITIVE, Receivers.All, primitiveIndex, position);
 	}
 
 	/// <summary>
@@ -151,7 +201,7 @@ public class CubeForgeGame : CubeForgeGameBehavior
 	/// <param name="primitive"></param>
 	public void DestroyPrimitive(Primitive primitive)
 	{
-		networkObject.SendRpc("DestroyPrimitive", Receivers.All, primitive.transform.position);
+		networkObject.SendRpc(RPC_DESTROY_PRIMITIVE, Receivers.All, primitive.transform.position);
 	}
 
 	/// <summary>
@@ -276,7 +326,7 @@ public class CubeForgeGame : CubeForgeGameBehavior
 	/// </param>
 	public override void DestroyPrimitive(RpcArgs args)
 	{
-		MainThreadManager.Run(() =>
+		Action execute = () =>
 		{
 			var pos = args.GetNext<Vector3>();
 			if (!primitiveInstances.ContainsKey(pos))
@@ -287,7 +337,14 @@ public class CubeForgeGame : CubeForgeGameBehavior
 
 			// TODO:  Adjust the min / max
 			// TODO:  Send the bit index and remove using that
-		});
+		};
+
+		// Normally you can just call the method, however since we don't know if
+		// you are using the main thread runner in this example, we cover both cases
+		if (Rpc.MainThreadRunner != null)
+			execute();
+		else
+			MainThreadManager.Run(execute);
 	}
 
 	public override void TestMe(RpcArgs args)

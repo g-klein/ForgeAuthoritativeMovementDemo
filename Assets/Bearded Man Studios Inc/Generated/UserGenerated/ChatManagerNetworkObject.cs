@@ -12,6 +12,9 @@ namespace BeardedManStudios.Forge.Networking.Generated
 
 		private byte[] _dirtyFields = new byte[0];
 
+		#pragma warning disable 0067
+		public event FieldChangedEvent fieldAltered;
+		#pragma warning restore 0067
 
 		protected override void OwnershipChanged()
 		{
@@ -68,7 +71,7 @@ namespace BeardedManStudios.Forge.Networking.Generated
 		}
 
 		public ChatManagerNetworkObject() : base() { Initialize(); }
-		public ChatManagerNetworkObject(NetWorker networker, INetworkBehavior networkBehavior = null, int createCode = 0) : base(networker, networkBehavior, createCode) { Initialize(); }
+		public ChatManagerNetworkObject(NetWorker networker, INetworkBehavior networkBehavior = null, int createCode = 0, byte[] metadata = null) : base(networker, networkBehavior, createCode, metadata) { Initialize(); }
 		public ChatManagerNetworkObject(NetWorker networker, uint serverId, FrameStream frame) : base(networker, serverId, frame) { Initialize(); }
 
 		// DO NOT TOUCH, THIS GETS GENERATED PLEASE EXTEND THIS CLASS IF YOU WISH TO HAVE CUSTOM CODE ADDITIONS

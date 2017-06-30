@@ -12,17 +12,22 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
 
+using System.Collections.Generic;
+
 namespace BeardedManStudios.Forge.Networking
 {
-	public interface IServer
-	{
-		bool AcceptingConnections { get; }
-		void StopAcceptingConnections();
-		void StartAcceptingConnections();
-	}
+    public interface IServer
+    {
+        List<string> BannedAddresses { get; set; }
+        void Disconnect(NetworkingPlayer player, bool forced);
+        void BanPlayer(ulong networkId, int minutes);
+        bool AcceptingConnections { get; }
+        void StopAcceptingConnections();
+        void StartAcceptingConnections();
+    }
 }

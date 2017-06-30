@@ -8,6 +8,7 @@ namespace BeardedManStudios.Forge.Networking.Generated
 	[GeneratedRPCVariableNames("{\"types\":[]")]
 	public abstract partial class NetworkCameraBehavior : NetworkBehavior
 	{
+		
 		public NetworkCameraNetworkObject networkObject = null;
 
 		public override void Initialize(NetworkObject obj)
@@ -20,7 +21,6 @@ namespace BeardedManStudios.Forge.Networking.Generated
 			networkObject.AttachedBehavior = this;
 
 			base.SetupHelperRpcs(networkObject);
-			networkObject.RegistrationComplete();
 
 			MainThreadManager.Run(NetworkStart);
 
@@ -33,22 +33,62 @@ namespace BeardedManStudios.Forge.Networking.Generated
 				else
 					skipAttachIds.Remove(obj.NetworkId);
 			}
+
+			if (obj.Metadata == null)
+				return;
+
+			byte transformFlags = obj.Metadata[0];
+
+			if (transformFlags == 0)
+				return;
+
+			BMSByte metadataTransform = new BMSByte();
+			metadataTransform.Clone(obj.Metadata);
+			metadataTransform.MoveStartIndex(1);
+
+			if ((transformFlags & 0x01) != 0 && (transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() =>
+				{
+					transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform);
+					transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform);
+				});
+			}
+			else if ((transformFlags & 0x01) != 0)
+			{
+				MainThreadManager.Run(() => { transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform); });
+			}
+			else if ((transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() => { transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform); });
+			}
 		}
 
-		public override void Initialize(NetWorker networker)
+		protected override void CompleteRegistration()
 		{
-			Initialize(new NetworkCameraNetworkObject(networker, createCode: TempAttachCode));
+			base.CompleteRegistration();
+			networkObject.ReleaseCreateBuffer();
+		}
+
+		public override void Initialize(NetWorker networker, byte[] metadata = null)
+		{
+			Initialize(new NetworkCameraNetworkObject(networker, createCode: TempAttachCode, metadata: metadata));
 		}
 
 		private void DestroyGameObject()
 		{
-			MainThreadManager.Run(() => { Destroy(gameObject); });
+			MainThreadManager.Run(() => { try { Destroy(gameObject); } catch { } });
 			networkObject.onDestroy -= DestroyGameObject;
 		}
 
-		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode)
+		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode, byte[] metadata = null)
 		{
-			return new NetworkCameraNetworkObject(networker, this, createCode);
+			return new NetworkCameraNetworkObject(networker, this, createCode, metadata);
+		}
+
+		protected override void InitializedTransform()
+		{
+			networkObject.SnapInterpolations();
 		}
 
 

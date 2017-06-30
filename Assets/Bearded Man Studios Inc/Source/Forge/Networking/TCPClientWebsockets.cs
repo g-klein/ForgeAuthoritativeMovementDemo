@@ -12,7 +12,7 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
@@ -28,7 +28,7 @@ namespace BeardedManStudios.Forge.Networking
         //TODO: Brent, figure out how to processor define this in a dll for unity
         // or we need to make 2 dlls, one with and one without this pre-processored defined out
         // This breaks iOS support because it cannot do [DllImport..]
-#if UNITY_IOS
+#if !UNITY_IOS
 		[DllImport("__Internal")]
 		private static extern void ForgeConnect(string host, ushort port);
 

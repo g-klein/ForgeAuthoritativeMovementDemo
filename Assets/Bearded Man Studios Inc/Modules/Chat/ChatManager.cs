@@ -50,7 +50,7 @@ public class ChatManager : ChatManagerBehavior
 		if (string.IsNullOrEmpty(name))
 			name = NetWorker.InstanceGuid.ToString().Substring(0, 5);
 
-		networkObject.SendRpc("SendMessage", Receivers.All, name, message);
+		networkObject.SendRpc(RPC_SEND_MESSAGE, Receivers.All, name, message);
 		messageInput.text = "";
 		messageInput.Select();
 	}

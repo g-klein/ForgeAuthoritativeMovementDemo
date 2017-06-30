@@ -12,7 +12,7 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
@@ -22,7 +22,9 @@ using BeardedManStudios.Forge.Networking.Nat;
 using BeardedManStudios.Threading;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
+using System.Threading;
 
 namespace BeardedManStudios.Forge.Networking
 {
@@ -34,11 +36,13 @@ namespace BeardedManStudios.Forge.Networking
 
 		private List<UDPPacketComposer> pendingComposers = new List<UDPPacketComposer>();
 
-		public UDPServer(int maxConnections) : base(maxConnections) { AcceptingConnections = true; }
+		public UDPServer(int maxConnections) : base(maxConnections) { AcceptingConnections = true; BannedAddresses = new List<string>(); }
 
 		public NatHolePunch nat = new NatHolePunch();
 
 		protected List<FrameStream> bufferedMessages = new List<FrameStream>();
+
+		public List<string> BannedAddresses { get; set; }
 
 		/// <summary>
 		/// Used to determine if this server is currently accepting connections
@@ -134,6 +138,9 @@ namespace BeardedManStudios.Forge.Networking
 				// Create the thread that will be listening for new data from connected clients and start its execution
 				Task.Queue(ReadClients);
 
+				// Create the thread that will check for player timeouts
+				Task.Queue(CheckClientTimeout);
+
 				// Do any generic initialization in result of the successful bind
 				OnBindSuccessful();
 
@@ -143,7 +150,7 @@ namespace BeardedManStudios.Forge.Networking
 				Me.Connected = true;
 
 				//Set the port
-				SetPort(port);
+				SetPort((ushort)((IPEndPoint)Client.Client.LocalEndPoint).Port);
 
 				if (!string.IsNullOrEmpty(natHost))
 				{
@@ -174,16 +181,22 @@ namespace BeardedManStudios.Forge.Networking
 
 			lock (Players)
 			{
-				// Stop listening for new connections
-				Client.Close();
-				bool hostDisconnected = false;
-
 				// Go through all of the players and disconnect them
 				foreach (NetworkingPlayer player in Players)
 				{
-					Disconnect(player, forced);
-					if (player == Me)
-						hostDisconnected = true;
+					if (player != Me)
+						Disconnect(player, forced);
+				}
+
+				CleanupDisconnections();
+
+				int counter = 0;
+				for (; ; counter++)
+				{
+					if (counter >= 10 || Players.Count == 1)
+						break;
+
+					Thread.Sleep(100);
 				}
 
 				// Send signals to the methods registered to the disconnect events
@@ -192,8 +205,8 @@ namespace BeardedManStudios.Forge.Networking
 				else
 					OnForcedDisconnect();
 
-				if (hostDisconnected)
-					CleanupDisconnections();
+				// Stop listening for new connections
+				Client.Close();
 			}
 		}
 
@@ -221,8 +234,55 @@ namespace BeardedManStudios.Forge.Networking
 		/// <param name="forced">If the player is being forcibly removed from an exception</param>
 		private void RemovePlayer(NetworkingPlayer player, bool forced)
 		{
+			// Tell the player that they are getting disconnected
+			Send(player, new ConnectionClose(Time.Timestep, false, Receivers.Target, MessageGroupIds.DISCONNECT, false), true);
+
+			Thread.Sleep(500);
+
+			FinalizeRemovePlayer(player);
+		}
+
+		private void FinalizeRemovePlayer(NetworkingPlayer player)
+		{
 			OnPlayerDisconnected(player);
 			udpPlayers.Remove(player.Ip + "+" + player.Port);
+		}
+
+		/// <summary>
+		/// Checks all of the clients to see if any of them are timed out
+		/// </summary>
+		private void CheckClientTimeout()
+		{
+			List<NetworkingPlayer> timedoutPlayers = new List<NetworkingPlayer>();
+			while (IsBound)
+			{
+				IteratePlayers((player) =>
+				{
+					// Don't process the server during this check
+					if (player == Me)
+						return;
+
+					if (player.TimedOut())
+					{
+						timedoutPlayers.Add(player);
+					}
+				});
+
+				if (timedoutPlayers.Count > 0)
+				{
+					foreach (NetworkingPlayer player in timedoutPlayers)
+					{
+						Disconnect(player, true);
+						OnPlayerTimeout(player);
+						CleanupDisconnections();
+					}
+
+					timedoutPlayers.Clear();
+				}
+
+				// Wait a second before checking again
+				Thread.Sleep(1000);
+			}
 		}
 
 		/// <summary>
@@ -299,7 +359,18 @@ namespace BeardedManStudios.Forge.Networking
 						}
 					}
 					else
+					{
+						// Due to the Forge Networking protocol, the only time that packet 1
+						// will be 71 and the second packet be 69 is a forced disconnect reconnect
+						if (packet[0] == 71 && packet[1] == 69)
+						{
+							FinalizeRemovePlayer(currentReadingPlayer);
+							continue;
+						}
+
+						currentReadingPlayer.Ping();
 						ReadPacket(packet);
+					}
 				}
 			}
 		}
@@ -309,6 +380,10 @@ namespace BeardedManStudios.Forge.Networking
 			// Check for a local listing request
 			if (packet.Size.Between(2, 4) && packet[0] == BROADCAST_LISTING_REQUEST_1 && packet[1] == BROADCAST_LISTING_REQUEST_2 && packet[2] == BROADCAST_LISTING_REQUEST_3)
 			{
+				// Don't reply if the server is not currently accepting connections
+				if (!AcceptingConnections)
+					return;
+
 				// This may be a local listing request so respond with the server flag byte
 				Client.Send(new byte[] { SERVER_BROADCAST_CODE }, 1, groupEP);
 				return;
@@ -330,7 +405,7 @@ namespace BeardedManStudios.Forge.Networking
 				Send(Error.CreateErrorMessage(Time.Timestep, "The server is busy and not accepting connections", false, MessageGroupIds.MAX_CONNECTIONS, true));
 
 				// Send the close connection frame to the client
-				Send(new ConnectionClose(Time.Timestep, false, Receivers.Target, MessageGroupIds.DISCONNECT, true));
+				Send(new ConnectionClose(Time.Timestep, false, Receivers.Target, MessageGroupIds.DISCONNECT, false));
 
 				return;
 			}
@@ -461,13 +536,9 @@ namespace BeardedManStudios.Forge.Networking
 		/// Pong back to the client
 		/// </summary>
 		/// <param name="playerRequesting"></param>
-		protected override void Pong(NetworkingPlayer playerRequesting, System.DateTime time)
+		protected override void Pong(NetworkingPlayer playerRequesting, DateTime time)
 		{
-			BMSByte payload = new BMSByte();
-			long ticks = time.Ticks;
-			payload.BlockCopy<long>(ticks, sizeof(long));
-			Frame.Pong pongFrame = new Frame.Pong(Time.Timestep, false, payload, Receivers.Target, MessageGroupIds.PONG, false);
-			Send(playerRequesting, pongFrame);
+			Send(playerRequesting, GeneratePong(time));
 		}
 
 		public void StopAcceptingConnections()
@@ -478,6 +549,16 @@ namespace BeardedManStudios.Forge.Networking
 		public void StartAcceptingConnections()
 		{
 			AcceptingConnections = true;
+		}
+
+		public void BanPlayer(ulong networkId, int minutes)
+		{
+			NetworkingPlayer player = Players.FirstOrDefault(p => p.NetworkId == networkId);
+
+			if (player == null)
+				return;
+
+			BannedAddresses.Add(player.Ip);
 		}
 	}
 }

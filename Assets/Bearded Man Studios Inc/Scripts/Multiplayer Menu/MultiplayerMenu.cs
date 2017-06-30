@@ -1,5 +1,7 @@
 ﻿using BeardedManStudios.Forge.Networking;
 using BeardedManStudios.Forge.Networking.Unity;
+using BeardedManStudios.Forge.Networking.Lobby;
+using BeardedManStudios.SimpleJSON;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -54,7 +56,15 @@ public class MultiplayerMenu : MonoBehaviour
 			Rpc.MainThreadRunner = MainThreadManager.Instance;
 
 		if (getLocalNetworkConnections)
-			NetWorker.SetupLocalUdpListings();
+		{
+			NetWorker.localServerLocated += LocalServerLocated;
+			NetWorker.RefreshLocalUdpListings(ushort.Parse(portNumber.text));
+		}
+	}
+
+	private void LocalServerLocated(NetWorker.BroadcastEndpoints endpoint)
+	{
+		Debug.Log("Found endpoint: " + endpoint.Address + ":" + endpoint.Port);
 	}
 
 	public void Connect()
@@ -99,13 +109,9 @@ public class MultiplayerMenu : MonoBehaviour
 		_matchmaking = true;
 
 		if (mgr == null && networkManager == null)
-		{
-			Debug.LogWarning("A network manager was not provided, generating a new one instead");
-			networkManager = new GameObject("Network Manager");
-			mgr = networkManager.AddComponent<NetworkManager>();
-		}
-		else if (mgr == null)
-			mgr = Instantiate(networkManager).GetComponent<NetworkManager>();
+			throw new System.Exception("A network manager was not provided, this is required for the tons of fancy stuff");
+		
+		mgr = Instantiate(networkManager).GetComponent<NetworkManager>();
 
 		mgr.MatchmakingServersFromMasterServer(masterServerHost, masterServerPort, myElo, (response) =>
 		{
@@ -138,16 +144,28 @@ public class MultiplayerMenu : MonoBehaviour
 		else
 		{
 			server = new UDPServer(64);
-			
+
 			if (natServerHost.Trim().Length == 0)
-				((UDPServer)server).Connect();
+				((UDPServer)server).Connect(ipAddress.text, ushort.Parse(portNumber.text));
 			else
 				((UDPServer)server).Connect(natHost: natServerHost, natPort: natServerPort);
 		}
-		//TODO: Implement Lobby Service
-		//LobbyService.Instance.Initialize(server);
+
+		server.playerTimeout += (player) =>
+		{
+			Debug.Log("Player " + player.NetworkId + " timed out");
+		};
+		LobbyService.Instance.Initialize(server);
 
 		Connected(server);
+	}
+
+	private void Update()
+	{
+		if (Input.GetKeyDown(KeyCode.H))
+			Host();
+		else if (Input.GetKeyDown(KeyCode.C))
+			Connect();
 	}
 
 	public void Connected(NetWorker networker)
@@ -167,21 +185,37 @@ public class MultiplayerMenu : MonoBehaviour
 		else if (mgr == null)
 			mgr = Instantiate(networkManager).GetComponent<NetworkManager>();
 
-		mgr.Initialize(networker, masterServerHost, masterServerPort, useElo, eloRequired);
+		// If we are using the master server we need to get the registration data
+		JSONNode masterServerData = null;
+		if (!string.IsNullOrEmpty(masterServerHost))
+		{
+			string serverId = "myGame";
+			string serverName = "Forge Game";
+			string type = "Deathmatch";
+			string mode = "Teams";
+			string comment = "Demo comment...";
+
+			masterServerData = mgr.MasterServerRegisterData(networker, serverId, serverName, type, mode, comment, useElo, eloRequired);
+		}
+
+		mgr.Initialize(networker, masterServerHost, masterServerPort, masterServerData);
 
 		if (useInlineChat && networker.IsServer)
 			SceneManager.sceneLoaded += CreateInlineChat;
 
-		if (!DontChangeSceneOnConnect)
-			SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
-		else
-			NetworkObject.Flush(networker); //Called because we are already in the correct scene!
+		if (networker is IServer)
+		{
+			if (!DontChangeSceneOnConnect)
+				SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
+			else
+				NetworkObject.Flush(networker); //Called because we are already in the correct scene!
+		}
 	}
 
 	private void CreateInlineChat(Scene arg0, LoadSceneMode arg1)
 	{
 		SceneManager.sceneLoaded -= CreateInlineChat;
-		var chat = NetworkManager.Instance.InstantiateChatManagerNetworkObject();
+		var chat = NetworkManager.Instance.InstantiateChatManager();
 		DontDestroyOnLoad(chat.gameObject);
 	}
 
@@ -194,6 +228,6 @@ public class MultiplayerMenu : MonoBehaviour
 	private void OnApplicationQuit()
 	{
 		if (getLocalNetworkConnections)
-			NetWorker.ApplicationExit();
+			NetWorker.EndSession();
 	}
 }

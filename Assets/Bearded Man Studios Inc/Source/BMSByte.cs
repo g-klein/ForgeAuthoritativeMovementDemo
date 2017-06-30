@@ -12,7 +12,7 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
@@ -670,12 +670,14 @@ namespace BeardedManStudios
 			}
 			else if (type == typeof(string))
 				return GetString(start, moveIndex);
+			else if (type == typeof(Vector))
+				return GetVector(start, moveIndex);
 			else if (type.IsArray)
 			{
 				int rank = type.GetArrayRank();
 				Type targetType = type.GetElementType();
 
-				int startingIndex = StartIndex();
+				//int startingIndex = StartIndex();
 				MoveStartIndex(sizeof(int));
 
 				if (rank > 4)
@@ -753,6 +755,21 @@ namespace BeardedManStudios
 				MoveStartIndex(length);
 
 			return Encoding.UTF8.GetString(byteArr, start + sizeof(int), length);
+		}
+
+		public Vector GetVector(int start, bool moveIndex = false)
+		{
+			Vector vec = new Vector
+			{
+				x = GetBasicType<float>(start, false),
+				y = GetBasicType<float>(start + sizeof(float), false),
+				z = GetBasicType<float>(start + (sizeof(float) * 2), false)
+			};
+
+			if (moveIndex)
+				MoveStartIndex(sizeof(float) * 3);
+
+			return vec;
 		}
 
 		/// <summary>

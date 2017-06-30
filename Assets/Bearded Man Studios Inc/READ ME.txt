@@ -1,0 +1,2 @@
+Docs are at:  http://docs.forgepowered.com/
+Get updates faster from:  http://developers.forgepowered.com/

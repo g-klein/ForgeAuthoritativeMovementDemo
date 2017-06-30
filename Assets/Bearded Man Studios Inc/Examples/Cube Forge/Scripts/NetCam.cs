@@ -20,7 +20,7 @@ public class NetCam : NetworkCameraBehavior
 
 	protected override void NetworkStart()
 	{
-		//BeardedManStudios.Forge.Logging.BMSLog.Log("ID is " + networkObject.NetworkId);
+		base.NetworkStart();
 
 		cameraRef = GetComponent<Camera>();
 		networkObject.UpdateInterval = 100;
@@ -31,10 +31,11 @@ public class NetCam : NetworkCameraBehavior
 		else
 			playerCamera = this;
 
+		networkObject.position = transform.position;
+		networkObject.SnapInterpolations();
+
 		if (!networkObject.IsOwner)
 			return;
-
-		networkObject.position = transform.position;
 	}
 
 	private void Update()

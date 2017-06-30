@@ -8,6 +8,11 @@ namespace BeardedManStudios.Forge.Networking.Generated
 	[GeneratedRPCVariableNames("{\"types\":[[\"minimum\", \"maximum\", \"data\"][\"typebyte\", \"position\"][\"position\"][\"message\"]]")]
 	public abstract partial class CubeForgeGameBehavior : NetworkBehavior
 	{
+		public const byte RPC_INITIALIZE_MAP = 0 + 5;
+		public const byte RPC_CREATE_PRIMITIVE = 1 + 5;
+		public const byte RPC_DESTROY_PRIMITIVE = 2 + 5;
+		public const byte RPC_TEST_ME = 3 + 5;
+		
 		public CubeForgeGameNetworkObject networkObject = null;
 
 		public override void Initialize(NetworkObject obj)
@@ -24,7 +29,6 @@ namespace BeardedManStudios.Forge.Networking.Generated
 			networkObject.RegisterRpc("CreatePrimitive", CreatePrimitive, typeof(byte), typeof(Vector3));
 			networkObject.RegisterRpc("DestroyPrimitive", DestroyPrimitive, typeof(Vector3));
 			networkObject.RegisterRpc("TestMe", TestMe, typeof(string));
-			networkObject.RegistrationComplete();
 
 			MainThreadManager.Run(NetworkStart);
 
@@ -37,22 +41,62 @@ namespace BeardedManStudios.Forge.Networking.Generated
 				else
 					skipAttachIds.Remove(obj.NetworkId);
 			}
+
+			if (obj.Metadata == null)
+				return;
+
+			byte transformFlags = obj.Metadata[0];
+
+			if (transformFlags == 0)
+				return;
+
+			BMSByte metadataTransform = new BMSByte();
+			metadataTransform.Clone(obj.Metadata);
+			metadataTransform.MoveStartIndex(1);
+
+			if ((transformFlags & 0x01) != 0 && (transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() =>
+				{
+					transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform);
+					transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform);
+				});
+			}
+			else if ((transformFlags & 0x01) != 0)
+			{
+				MainThreadManager.Run(() => { transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform); });
+			}
+			else if ((transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() => { transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform); });
+			}
 		}
 
-		public override void Initialize(NetWorker networker)
+		protected override void CompleteRegistration()
 		{
-			Initialize(new CubeForgeGameNetworkObject(networker, createCode: TempAttachCode));
+			base.CompleteRegistration();
+			networkObject.ReleaseCreateBuffer();
+		}
+
+		public override void Initialize(NetWorker networker, byte[] metadata = null)
+		{
+			Initialize(new CubeForgeGameNetworkObject(networker, createCode: TempAttachCode, metadata: metadata));
 		}
 
 		private void DestroyGameObject()
 		{
-			MainThreadManager.Run(() => { Destroy(gameObject); });
+			MainThreadManager.Run(() => { try { Destroy(gameObject); } catch { } });
 			networkObject.onDestroy -= DestroyGameObject;
 		}
 
-		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode)
+		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode, byte[] metadata = null)
 		{
-			return new CubeForgeGameNetworkObject(networker, this, createCode);
+			return new CubeForgeGameNetworkObject(networker, this, createCode, metadata);
+		}
+
+		protected override void InitializedTransform()
+		{
+			networkObject.SnapInterpolations();
 		}
 
 		/// <summary>

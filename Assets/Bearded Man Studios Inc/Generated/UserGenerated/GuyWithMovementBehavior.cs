@@ -4,10 +4,12 @@ using UnityEngine;
 
 namespace BeardedManStudios.Forge.Networking.Generated
 {
-	[GeneratedRPC("{\"types\":[]")]
-	[GeneratedRPCVariableNames("{\"types\":[]")]
+	[GeneratedRPC("{\"types\":[[\"byte[]\"]]")]
+	[GeneratedRPCVariableNames("{\"types\":[[\"historyItems\"]]")]
 	public abstract partial class GuyWithMovementBehavior : NetworkBehavior
 	{
+		public const byte RPC_SYNC_MOVEMENT_HISTORY = 0 + 5;
+		
 		public GuyWithMovementNetworkObject networkObject = null;
 
 		public override void Initialize(NetworkObject obj)
@@ -20,7 +22,7 @@ namespace BeardedManStudios.Forge.Networking.Generated
 			networkObject.AttachedBehavior = this;
 
 			base.SetupHelperRpcs(networkObject);
-			networkObject.RegistrationComplete();
+			networkObject.RegisterRpc("SyncMovementHistory", SyncMovementHistory, typeof(byte[]));
 
 			MainThreadManager.Run(NetworkStart);
 
@@ -33,24 +35,69 @@ namespace BeardedManStudios.Forge.Networking.Generated
 				else
 					skipAttachIds.Remove(obj.NetworkId);
 			}
+
+			if (obj.Metadata == null)
+				return;
+
+			byte transformFlags = obj.Metadata[0];
+
+			if (transformFlags == 0)
+				return;
+
+			BMSByte metadataTransform = new BMSByte();
+			metadataTransform.Clone(obj.Metadata);
+			metadataTransform.MoveStartIndex(1);
+
+			if ((transformFlags & 0x01) != 0 && (transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() =>
+				{
+					transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform);
+					transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform);
+				});
+			}
+			else if ((transformFlags & 0x01) != 0)
+			{
+				MainThreadManager.Run(() => { transform.position = ObjectMapper.Instance.Map<Vector3>(metadataTransform); });
+			}
+			else if ((transformFlags & 0x02) != 0)
+			{
+				MainThreadManager.Run(() => { transform.rotation = ObjectMapper.Instance.Map<Quaternion>(metadataTransform); });
+			}
 		}
 
-		public override void Initialize(NetWorker networker)
+		protected override void CompleteRegistration()
 		{
-			Initialize(new GuyWithMovementNetworkObject(networker, createCode: TempAttachCode));
+			base.CompleteRegistration();
+			networkObject.ReleaseCreateBuffer();
+		}
+
+		public override void Initialize(NetWorker networker, byte[] metadata = null)
+		{
+			Initialize(new GuyWithMovementNetworkObject(networker, createCode: TempAttachCode, metadata: metadata));
 		}
 
 		private void DestroyGameObject()
 		{
-			MainThreadManager.Run(() => { Destroy(gameObject); });
+			MainThreadManager.Run(() => { try { Destroy(gameObject); } catch { } });
 			networkObject.onDestroy -= DestroyGameObject;
 		}
 
-		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode)
+		public override NetworkObject CreateNetworkObject(NetWorker networker, int createCode, byte[] metadata = null)
 		{
-			return new GuyWithMovementNetworkObject(networker, this, createCode);
+			return new GuyWithMovementNetworkObject(networker, this, createCode, metadata);
 		}
 
+		protected override void InitializedTransform()
+		{
+			networkObject.SnapInterpolations();
+		}
+
+		/// <summary>
+		/// Arguments:
+		/// byte[] historyItems
+		/// </summary>
+		public abstract void SyncMovementHistory(RpcArgs args);
 
 		// DO NOT TOUCH, THIS GETS GENERATED PLEASE EXTEND THIS CLASS IF YOU WISH TO HAVE CUSTOM CODE ADDITIONS
 	}

@@ -6,7 +6,8 @@ using BeardedManStudios.Forge.Networking;
 using System;
 using Assets.Scripts.Utilities;
 
-public class InputListener : InputListenerBehavior {
+public class InputListener : InputListenerBehavior
+{
     private InputFrame nextInputFrame;
     public List<InputFrame> FramesToSendToServer;
     public List<InputFrame> FramesToPlay;
@@ -21,9 +22,11 @@ public class InputListener : InputListenerBehavior {
         FramesToPlay = new List<InputFrame>();
     }
 
-    void Update () {
+    void Update()
+    {
         //collect the next input to send
-        nextInputFrame = new InputFrame() {
+        nextInputFrame = new InputFrame()
+        {
             horizontalInput = Input.GetAxis("Horizontal"),
             verticalInput = Input.GetAxis("Vertical")
         };
@@ -41,10 +44,10 @@ public class InputListener : InputListenerBehavior {
             FramesToPlay.Add(nextInputFrame);
         }
 
-        if(FrameNumber % FrameSyncRate == 0)
+        if (FrameNumber % FrameSyncRate == 0)
         {
             var bytes = ByteArrayUtils.ObjectToByteArray(FramesToSendToServer);
-            networkObject.SendRpc("SyncInputs", Receivers.Server, new object[] { bytes });
+            networkObject.SendRpc(RPC_SYNC_INPUTS, Receivers.Server, new object[] { bytes });
             FramesToSendToServer.Clear();
         }
     }

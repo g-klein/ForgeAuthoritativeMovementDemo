@@ -12,7 +12,7 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
@@ -30,7 +30,7 @@ using System.Net.Sockets;
 
 namespace BeardedManStudios.Forge.Networking
 {
-	public class TCPClientBase : BaseTCP, IClient
+	public abstract class TCPClientBase : BaseTCP, IClient
 	{
 		/// <summary>
 		/// The reference to the raw client that is connected to the server
@@ -61,6 +61,8 @@ namespace BeardedManStudios.Forge.Networking
 		/// </summary>
 		protected NetworkingPlayer server = null;
 		public NetworkingPlayer Server { get { return server; } }
+
+		public event BaseNetworkEvent connectAttemptFailed;
 
 		/// <summary>
 		/// Used to determine what happened during the read method and what actions
@@ -122,7 +124,17 @@ namespace BeardedManStudios.Forge.Networking
 				client = new StreamSocket();
 				await client.ConnectAsync(new HostName(host), port.ToString());
 #else
-				client = new TcpClient(host, port);
+				try
+				{
+					client = new TcpClient(host, port);
+				}
+				catch
+				{
+					if (connectAttemptFailed != null)
+						connectAttemptFailed();
+
+					return;
+				}
 #endif
 
 				// This was a successful bind so fire the events for it
@@ -293,6 +305,16 @@ namespace BeardedManStudios.Forge.Networking
 				for (int i = 0; i < Players.Count; ++i)
 					OnPlayerDisconnected(Players[i]);
 			}
+		}
+
+
+
+		/// <summary>
+		/// Request the ping from the server (pingReceived will be triggered if it receives it)
+		/// </summary>
+		public override void Ping()
+		{
+			Send(GeneratePing());
 		}
 	}
 }

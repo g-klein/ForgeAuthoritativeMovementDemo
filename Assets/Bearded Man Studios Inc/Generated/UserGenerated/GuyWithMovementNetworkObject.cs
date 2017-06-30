@@ -12,6 +12,9 @@ namespace BeardedManStudios.Forge.Networking.Generated
 
 		private byte[] _dirtyFields = new byte[1];
 
+		#pragma warning disable 0067
+		public event FieldChangedEvent fieldAltered;
+		#pragma warning restore 0067
 		private Vector3 _position;
 		public event FieldEvent<Vector3> positionChanged;
 		public InterpolateVector3 positionInterpolation = new InterpolateVector3() { LerpT = 0.15f, Enabled = true };
@@ -40,8 +43,8 @@ namespace BeardedManStudios.Forge.Networking.Generated
 		private void RunChange_position(ulong timestep)
 		{
 			if (positionChanged != null) positionChanged(_position, timestep);
+			if (fieldAltered != null) fieldAltered("position", _position, timestep);
 		}
-
 		private uint _inputOwnerId;
 		public event FieldEvent<uint> inputOwnerIdChanged;
 		public InterpolateUnknown inputOwnerIdInterpolation = new InterpolateUnknown() { LerpT = 0f, Enabled = false };
@@ -70,8 +73,8 @@ namespace BeardedManStudios.Forge.Networking.Generated
 		private void RunChange_inputOwnerId(ulong timestep)
 		{
 			if (inputOwnerIdChanged != null) inputOwnerIdChanged(_inputOwnerId, timestep);
+			if (fieldAltered != null) fieldAltered("inputOwnerId", _inputOwnerId, timestep);
 		}
-
 
 		protected override void OwnershipChanged()
 		{
@@ -80,10 +83,8 @@ namespace BeardedManStudios.Forge.Networking.Generated
 		
 		public void SnapInterpolations()
 		{
-			positionInterpolation.current = _position;
-			positionInterpolation.target = _position;
-			inputOwnerIdInterpolation.current = _inputOwnerId;
-			inputOwnerIdInterpolation.target = _inputOwnerId;
+			positionInterpolation.current = positionInterpolation.target;
+			inputOwnerIdInterpolation.current = inputOwnerIdInterpolation.target;
 		}
 
 		public override int UniqueIdentity { get { return IDENTITY; } }
@@ -182,7 +183,7 @@ namespace BeardedManStudios.Forge.Networking.Generated
 		}
 
 		public GuyWithMovementNetworkObject() : base() { Initialize(); }
-		public GuyWithMovementNetworkObject(NetWorker networker, INetworkBehavior networkBehavior = null, int createCode = 0) : base(networker, networkBehavior, createCode) { Initialize(); }
+		public GuyWithMovementNetworkObject(NetWorker networker, INetworkBehavior networkBehavior = null, int createCode = 0, byte[] metadata = null) : base(networker, networkBehavior, createCode, metadata) { Initialize(); }
 		public GuyWithMovementNetworkObject(NetWorker networker, uint serverId, FrameStream frame) : base(networker, serverId, frame) { Initialize(); }
 
 		// DO NOT TOUCH, THIS GETS GENERATED PLEASE EXTEND THIS CLASS IF YOU WISH TO HAVE CUSTOM CODE ADDITIONS

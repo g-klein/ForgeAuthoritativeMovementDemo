@@ -12,7 +12,7 @@
 |                                Bearded Man Studios, Inc.     |
 |                                                              |
 |  This source code, project files, and associated files are   |
-|  copyrighted by Bearded Man Studios, Inc. (2012-2016) and    |
+|  copyrighted by Bearded Man Studios, Inc. (2012-2017) and    |
 |  may not be redistributed without written permission.        |
 |                                                              |
 \------------------------------+------------------------------*/
@@ -27,10 +27,10 @@ namespace BeardedManStudios.Forge.Networking
 
 		public RpcArgs(object[] args, RPCInfo info) : this()
 		{
-            this.Args = args;
-            this.Info = info;
-            this.ReadIndex = 0;
-        }
+			this.Args = args;
+			this.Info = info;
+			this.ReadIndex = 0;
+		}
 
 		public T GetNext<T>()
 		{
