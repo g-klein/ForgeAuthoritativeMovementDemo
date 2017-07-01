@@ -13,7 +13,7 @@ Press "X" in the server to teleport the cube around.  Press "X" in the client to
 ## How it works
 There are three important network objects in this scene.  
 * The ```InputListener``` collects authoritative input from the client, and sends it to the server.   
-* The ```GuyWithMovement``` is the script that controls the cube on the screen. This is the script performing client-side interpolation, server-side authoritative movement, and reconciliation.
+* The ```GuyWithMovement``` is the script that controls the cube on the screen. This is the script performing client-side prediction, server-side authoritative movement, and reconciliation.
 * The ```GameStateManager``` is the script that creates ```InputListener``` and ```GuyWithMovement``` and associates them when players connect.
 
 I will dive into these objects in more detail in the next section.
