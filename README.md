@@ -5,7 +5,7 @@ It features client-side prediction / reconciliation based on the principles desc
 The code is intended to supply a bare-bones and easy to understand framework that can be built out into a larger server-authoritative model.
 
 ## How to run it?
-Simply clone the project and open it unity.  Use the existing test.exe to start up a host and a client, or build your own .exe through unity.  (Make sure that you have Run in background enabled in player settings during build).  
+Simply clone the project and open it unity.  Build your own .exe through unity.  (Make sure that you have Run in background enabled in player settings during build).  
   
 Run two instances of the build -- in one press host, in the other hit connect.  You should see a cube that you can move around with WASD keys. 
 Press "X" in the server to teleport the cube around.  Press "X" in the client to try to teleport.  It is not seen as a valid move by the server, so you can see reconciliation kick in and move the cube back to the expected position.
