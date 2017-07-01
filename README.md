@@ -1,7 +1,7 @@
 # ForgeAuthoritativeMovementDemo
 ## What is this?
 This is an example of forge running an authoritative server with clients providing authoritative input.  
-It features client-side prediction / reconciliation based on the principles described here: http://www.gabrielgambetta.com/fpm3.html .
+It features client-side prediction / reconciliation based on the principles described here: http://www.gabrielgambetta.com/fpm1.html .
 The code is intended to supply a bare-bones and easy to understand framework that can be built out into a larger server-authoritative model.
 
 ## How to run it?
