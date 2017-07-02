@@ -4,7 +4,7 @@ This is an example of forge running an authoritative server with clients providi
 It features client-side prediction / reconciliation based on the principles described here: http://www.gabrielgambetta.com/fpm1.html .
 The code is intended to supply a bare-bones and easy to understand framework that can be built out into a larger server-authoritative model.
 
-_note: this uses versions 5.6.1f of Unity and version 23.02 of Forge Networking Remastered.  This project is not guaranteed to work with other versions of Forge / Unity.  Get Forge Networking Remastered here: https://github.com/BeardedManStudios/ForgeNetworkingRemastered _
+_note: this uses versions 5.6.1f of Unity and version 23.02 of Forge Networking Remastered.  This project is not guaranteed to work with other versions of Forge / Unity.  Get Forge Networking Remastered here: https://github.com/BeardedManStudios/ForgeNetworkingRemastered_
 
 ## How to run it?
 Simply clone the project and open it unity.  Build your own .exe through unity.  (Make sure that you have Run in background enabled in player settings during build).  
