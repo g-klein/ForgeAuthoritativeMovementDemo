@@ -39,6 +39,8 @@ So how does reconciliation work?  The client compares its predicted movements fr
 This code was created for demo purposes.  While it is certainly functional, and could be the good basis to build a game off of, there are some things that were left out / unoptomized for the sake of readability.  Certain linq statements should probably be rewritten, and some code abstracted into smaller files.  
   
 The most important thing to note if you are adding to this script, you need to be careful what you put in the ```PerformMovement``` method, since it may be called MANY times during reconciliation.  For example, lets say you add an ability to perform a Dash, but it costs mana.  If you do this during ```PerformMovement```, and then the inputs get replayed several times during reconciliation, the Dash ability could deplete your mana entirely while trying to reconcile position.  You would probably want to pass in a reference to amount of Mana you have,  and store it in history items.  When reconciling, you would want to pass in the Mana from movement history so as not to deplete the actual mana on your character.  This is just an example of how reconciliation can lead to unexpected game states.  Always keep this in mind when writing your movement scripts!
+  
+Additionally, Forge RPCs use RUDP protocol to send RPCs.  This can cause head-of-line blocking.  Forge has the option to send RPCs unreliably to prevent this.  This should be enabled in any fast paced multiplayer game.  Future versions of forge will support both unreliable and reliable RPCs with different function calls, so developers can decide which to use depending on the circumstances.
 
 
 ## Known issues  
