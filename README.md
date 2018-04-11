@@ -42,6 +42,8 @@ The most important thing to note if you are adding to this script, you need to b
   
 Additionally, Forge RPCs use RUDP protocol to send RPCs.  This can cause head-of-line blocking.  Forge has the option to send RPCs unreliably to prevent this.  This should be enabled in any fast paced multiplayer game.  Future versions of forge will support both unreliable and reliable RPCs with different function calls, so developers can decide which to use depending on the circumstances.
 
+It is also strongly recommended to do some optimizations to save bandwidth, such as compressing the byte array before it is sent.
+
 
 ## Known issues  
 There is an issue where the inputs to play can become backed up.  If one of the connected players has a lag spike, the inputs will be delayed when reaching the server.  Since the server plays the inputs back at a fixed rate, it will never catch up with the spike in inputs.  To get around this, the server can check if the number of inputs to play is greater than the number of inputs that come in from a single ```SyncInputs``` RPC, and if so, it can play all the extra inputs at once in order to "catch up".  This is not implemented in this example project!
